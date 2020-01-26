@@ -2,10 +2,16 @@ import numpy as np
 import dlib
 import cv2
 import random
+import os
+
+print("CWD: {}".format(os.getcwd()))
+# Provide the new path here
+os.chdir('/Users/aliumujib/Desktop/RoadToAI/OpenCV/facelandmarkdetection/')
+
 
 PREDICTOR_PATH = "shape_predictor_68_face_landmarks.dat"
-predictor = dlib.shape_predictor(PREDICTOR_PATH)
 detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor(PREDICTOR_PATH)
 
 
 class TooManyFacesException(Exception):
