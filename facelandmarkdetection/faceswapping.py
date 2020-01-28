@@ -1,14 +1,12 @@
 import cv2
 import numpy as np
 import dlib
-
 import random
 import os
 
 os.chdir('/Users/aliumujib/Desktop/RoadToAI/OpenCV/facelandmarkdetection/')
 print("CWD: {}".format(os.getcwd()))
 # Provide the new path here
-
 
 PREDICTOR_PATH = "shape_predictor_68_face_landmarks.dat"
 detector = dlib.get_frontal_face_detector()
@@ -132,9 +130,80 @@ def get_landmarks(im):
     if len(rects) > 1:
         raise TooManyFacesException
     if len(rects) == 0:
-        raise NoFacesException
+        print("No faces found")
+        return np.matrix([])
 
     return np.matrix([[p.x, p.y] for p in predictor(im, rects[0]).parts()])
+
+
+def elements(array):
+    return array.ndim and array.size
+
+
+def swap_faces(image1, image2):
+
+    image1_warped = np.copy(image2)
+
+    landmarks1 = get_landmarks(image1)
+    landmarks2 = get_landmarks(image2)
+
+    if(elements(landmarks1) == 0):
+        return np.zeros(image1.shape, image1.dtype)
+    elif (elements(landmarks2) == 0):
+        return np.zeros(image2.shape, image2.dtype)
+
+    # convert images to float datatype
+    image1 = np.float32(image1)
+    image2 = np.float32(image2)
+
+    # Find convex hull
+    hull1 = []
+    hull2 = []
+
+    hull_index = cv2.convexHull(np.array(landmarks2), returnPoints=False)
+
+    for i in range(0, len(hull_index)):
+        hull1.append((landmarks1[int(hull_index[i])][0, 0], landmarks1[int(hull_index[i])][0, 1]))
+        hull2.append((landmarks2[int(hull_index[i])][0, 0], landmarks2[int(hull_index[i])][0, 1]))
+
+    # Find delanauy traingulation for convex hull points
+    sizeImg2 = image2.shape
+    rect = (0, 0, sizeImg2[1], sizeImg2[0])
+
+    dt = calculate_delaunay_triangles(rect, hull2)
+
+    if len(dt) == 0:
+        quit()
+
+    # Apply affine transformation to Delaunay triangles
+    for i in range(0, len(dt)):
+        t1 = []
+        t2 = []
+
+        # get points for img1, img2 corresponding to the triangles
+        for j in range(0, 3):
+            t1.append(hull1[dt[i][j]])
+            t2.append(hull2[dt[i][j]])
+
+        warp_triangle(image1, image1_warped, t1, t2)
+
+    # Calculate Mask
+    hull8U = []
+    for i in range(0, len(hull2)):
+        hull8U.append((hull2[i][0], hull2[i][1]))
+
+    mask = np.zeros(image2.shape, dtype=image2.dtype)
+
+    cv2.fillConvexPoly(mask, np.int32(hull8U), (255, 255, 255))
+
+    r = cv2.boundingRect(np.float32([hull2]))
+
+    center = ((r[0]+int(r[2]/2), r[1]+int(r[3]/2)))
+
+    # Clone seamlessly.
+    output = cv2.seamlessClone(np.uint8(image1_warped), np.uint8(image2),
+                               np.uint8(mask), center, cv2.NORMAL_CLONE)
+    return output
 
 
 # Make sure OpenCV is version 3.0 or above
@@ -145,71 +214,19 @@ if int(major_ver) < 3:
     sys.exit(1)
 
 
-image1 = cv2.imread("ALIU_ABDULMUJEEB_OLOLADE.jpg")
-image2 = cv2.imread("BARRACK_OBAMA.jpg")
-image1_warped = np.copy(image2)
+capture = cv2.VideoCapture(0)
 
-landmarks1 = get_landmarks(image1)
-landmarks2 = get_landmarks(image2)
+filter_image = cv2.imread("BARRACK_OBAMA.jpg")
 
-# convert images to float datatype
-image1 = np.float32(image1)
-image2 = np.float32(image2)
+while True:
+    ret, frame = capture.read()
+    frame = cv2.pyrDown(frame)
+    cv2.imshow("Original input Swapped", frame)
+    output = swap_faces(filter_image, frame)
+    #output = cv2.pyrDown(output)
+    cv2.imshow("Face Swapped", output)
+    if cv2.waitKey(1) == 13:
+        break
 
-# Find convex hull
-hull1 = []
-hull2 = []
-
-hull_index = cv2.convexHull(np.array(landmarks2), returnPoints=False)
-
-for i in range(0, len(hull_index)):
-    hull1.append((landmarks1[int(hull_index[i])][0, 0], landmarks1[int(hull_index[i])][0, 1]))
-    hull2.append((landmarks2[int(hull_index[i])][0, 0], landmarks2[int(hull_index[i])][0, 1]))
-
-
-# Find delanauy traingulation for convex hull points
-sizeImg2 = image2.shape
-rect = (0, 0, sizeImg2[1], sizeImg2[0])
-
-dt = calculate_delaunay_triangles(rect, hull2)
-
-if len(dt) == 0:
-    quit()
-
-# Apply affine transformation to Delaunay triangles
-for i in range(0, len(dt)):
-    t1 = []
-    t2 = []
-
-    # get points for img1, img2 corresponding to the triangles
-    for j in range(0, 3):
-        t1.append(hull1[dt[i][j]])
-        t2.append(hull2[dt[i][j]])
-
-    warp_triangle(image1, image1_warped, t1, t2)
-
-# Calculate Mask
-hull8U = []
-for i in range(0, len(hull2)):
-    hull8U.append((hull2[i][0], hull2[i][1]))
-
-mask = np.zeros(image2.shape, dtype=image2.dtype)
-
-cv2.fillConvexPoly(mask, np.int32(hull8U), (255, 255, 255))
-
-r = cv2.boundingRect(np.float32([hull2]))
-
-center = ((r[0]+int(r[2]/2), r[1]+int(r[3]/2)))
-
-# Clone seamlessly.
-print("warped: {}".format(image1_warped.dtype))
-print("image 2 {}".format(image2.dtype))
-print("mask  {}".format(mask.dtype))
-
-output = cv2.seamlessClone(np.uint8(image1_warped), np.uint8(image2),
-                           np.uint8(mask), center, cv2.NORMAL_CLONE)
-
-cv2.imshow("Face Swapped", output)
 cv2.waitKey(0)
-
 cv2.destroyAllWindows()
