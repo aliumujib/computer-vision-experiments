@@ -223,7 +223,7 @@ while True:
     frame = cv2.pyrDown(frame)
     cv2.imshow("Original input Swapped", frame)
     output = swap_faces(filter_image, frame)
-    #output = cv2.pyrDown(output)
+    output = cv2.pyrDown(output)
     cv2.imshow("Face Swapped", output)
     if cv2.waitKey(1) == 13:
         break
